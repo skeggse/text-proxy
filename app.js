@@ -1,15 +1,31 @@
 var express = require('express');
 var Socket = require('socket.io');
 var http = require('http');
+var url = require('url');
 
 var app = express();
 var server = http.createServer(app);
 
 var main = /^\/[a-z0-9_-]+\/?$/;
 
+app.use(function cors(req, res, next) {
+  var origin = req.header('origin');
+  if (origin && url.parse(origin).protocol === 'chrome-extension:') {
+    res.header({
+      'Access-Control-Allow-Origin': origin,
+      'Access-Control-Allow-Methods': 'GET,PUT,POST,DELETE',
+      'Access-Control-Allow-Headers': 'X-Requested-With,Content-Type',
+      'Access-Control-Allow-Credentials': true
+    });
+  }
+  if (req.method === 'options') {
+    return res.send(200, '');
+  }
+  next();
+});
 app.use(express.logger('dev'));
 app.use(express.json({strict: true}));
-app.use(function(req, res, next) {
+app.use(function dispatch(req, res, next) {
   if (!main.test(req.url)) {
     return next();
   }
@@ -21,7 +37,7 @@ app.use(function(req, res, next) {
     }
     // TODO: scalability
     io.sockets.in(req.url).emit('update', req.body.text);
-    return res.status(204, '');
+    return res.send(204, '');
   }
   req.url = '/main.html';
   next();
